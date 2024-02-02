@@ -13,12 +13,12 @@ type Operand =
     | Address  of Address
     | Register of Register
 
-type Instructions =
-    | LDM of int
+type Instruction =
+    | LDM of Number
     | LDD of Address
     | LDI of Address
     | LDX of Address
-    | LDR of int
+    | LDR of Number
     | MOV of Register
     | STO of Address
     | ADD of Operand
@@ -39,3 +39,9 @@ type Instructions =
     | XOR of Operand
     | LSL of Number
     | LSR of Number
+
+type Program =
+    { instrs: Instruction list
+      memory: Map<int, int>
+      acc   : int
+      ix    : int }
