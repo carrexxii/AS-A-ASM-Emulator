@@ -42,4 +42,5 @@ type Instruction =
 
 type Program =
     { instrs: Instruction array
+      memory: (int * int) array
       start : int }

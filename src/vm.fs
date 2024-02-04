@@ -40,8 +40,6 @@ let regAddIndirect state addr = function
     | IX  -> { state with ix  = state.ix  + getMem state addr }
 
 let run (program: Program): unit =
-    let program = { program with start = 77 }
-    printfn $"Starting program:\n{program}\n"
     let rec loop state =
         let pc   = state.pc
         let next = { state with pc = pc + 1 }
@@ -77,4 +75,7 @@ let run (program: Program): unit =
         | END -> ()
         | instr -> failwith $"Unhandled instruction: {instr} \n {state}" 
 
-    loop State.Default
+    let state = State.Default
+    Array.iter (fun (addr: int, value: int) -> state.memory[addr] <- value) program.memory
+    printfn $"Starting program:\n{program}\n"
+    loop state
