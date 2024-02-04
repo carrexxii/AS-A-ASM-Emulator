@@ -41,7 +41,5 @@ type Instruction =
     | LSR of Number
 
 type Program =
-    { instrs: Instruction list
-      memory: Map<int, int>
-      acc   : int
-      ix    : int }
+    { instrs: Instruction array
+      start : int }

@@ -8,7 +8,8 @@ let main args =
     let path = "./programs/test.asaasm"
     try
         use file = File.OpenText path
-        Parser.parse file |> ignore
+        Parser.parse file
+        |> VM.run
     with
         | :? DirectoryNotFoundException -> failwith $"Directory '{path}' not found"
         | exn -> failwith $"Unmatched exception: {exn}"

@@ -68,18 +68,21 @@ let parseInstr instr oper =
     | "LSR", Some oper -> LSR >|= (parseNumber oper)
     | instr, oper -> Error $"Unrecognized values: '{instr}' '{oper}'"
 
-let parse (file: StreamReader) =
+let parse (file: StreamReader): Program =
     let rec loop instrs lNum =
         match file.ReadLine () with
         | null -> instrs
         | line ->
-            let instr = match line.Split " " with
-                        | [| instr; oper |] -> parseInstr instr (Some oper)
-                        | [| instr |] -> parseInstr instr None
-                        | xs -> failwith $"Unrecognized: {xs}"
-            match instr with
-            | Ok instr  -> loop (instr::instrs) (lNum + 1)
+            let ci = match line.Split " " with
+                     | [| instr; oper |] -> parseInstr instr (Some oper)
+                     | [| instr |] -> parseInstr instr None
+                     | xs -> failwith $"Unrecognized: {xs}"
+            match ci with
+            | Ok    ci  -> loop ((lNum, ci)::instrs) (lNum + 1)
             | Error err -> failwith $"Error parsing line {lNum}: {err}"
 
-    let instrs = loop [] 1 |> List.rev
-    List.map (fun instr -> printfn $"{instr}") instrs
+    let instrs = loop [] 1
+    { instrs = List.map (fun (i, instr) -> instr) instrs
+               |> Array.ofList
+               |> Array.rev
+      start = List.head instrs |> fst }
