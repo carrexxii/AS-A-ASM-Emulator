@@ -32,6 +32,7 @@ type Instruction =
     | JPN of Address
     | IN
     | OUT
+    | START
     | END
 
     | AND of Operand
@@ -44,3 +45,7 @@ type Program =
     { instrs: Instruction array
       memory: (int * int) array
       start : int }
+    static member Default =
+        { instrs = [||]
+          memory = [||]
+          start  = 0 }

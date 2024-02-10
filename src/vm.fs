@@ -5,23 +5,27 @@ open System.Collections.Generic
 open Tokens
 
 type State =
-    { pc  : int
-      acc : int
-      ix  : int
-      mar : int
-      mdr : int
-      cir : Instruction
-      flag: int
-      memory: Dictionary<int, int> }
+    { program: Program
+      pc     : int
+      acc    : int
+      ix     : int
+      mar    : int
+      mdr    : int
+      cir    : Instruction
+      flag   : int
+      memory : Dictionary<int, int>
+      output : string -> unit }
     static member Default =
-        { pc     = 0
-          acc    = 0
-          ix     = 0
-          mar    = 0
-          mdr    = 0
-          cir    = END
-          flag   = 0
-          memory = Dictionary () }
+        { program = Program.Default
+          pc      = 0
+          acc     = 0
+          ix      = 0
+          mar     = 0
+          mdr     = 0
+          cir     = START
+          flag    = 0
+          memory  = Dictionary ()
+          output  = fun str -> printfn $"{str}" }
 
 let matchNum = function
     | Number num   -> Number num
@@ -47,60 +51,66 @@ let regAddIndirect state addr = function
     | ACC -> { state with acc = state.acc + getMem state.memory addr }
     | IX  -> { state with ix  = state.ix  + getMem state.memory addr }
 
-let run (program: Program): unit =
-    let rec loop state =
-        let pc   = state.pc
-        let next = { state with pc = pc + 1 }
-        printfn $"[%2d{pc + program.start}]: {program.instrs[pc], -32}| (ACC = %3d{state.acc}, IX = %2d{state.ix}, flag=%2d{state.flag})"
-        match program.instrs[state.pc] with
-        | LDM num  -> loop { next with acc = num }
-        | LDD addr -> loop { next with acc = getMem state.memory addr }
-        | LDI addr -> loop { next with acc = getMem state.memory (getMem state.memory addr) }
-        | LDX addr -> loop { next with acc = getMem state.memory (addr + state.ix) }
-        | LDR num  -> loop { next with ix  = num }
-        | MOV reg  ->
-            match reg with
-            | ACC -> loop next
-            | IX  -> loop { next with ix = state.acc }
-        | STO addr ->
-            printfn $"\tMemory before: {state.memory[addr]}"
-            state.memory[addr] <- state.acc
-            printfn $"\tMemory after: {state.memory[addr]}"
-            loop next
-        | ADD oper -> loop (regAdd next (matchNum oper) ACC false)
-        | SUB oper -> loop (regAdd next (matchNum oper) ACC true)
-        | INC reg  -> loop (regAdd next (Number 1) reg false)
-        | DEC reg  -> loop (regAdd next (Number 1) reg true)
-        | JMP addr -> loop { state with pc = addr - program.start }
-        | CMP oper ->
-            loop { next with
-                     flag = match oper with
-                            | Number x when x = state.acc -> 0
-                            | Number x when x < state.acc -> -1
-                            | Number x when x > state.acc -> 1
-                            | x -> failwith $"Unexpected value for compare: '{x}'\n{state}" }
-        | CMI addr ->
-            let oper = getMem state.memory addr
-            loop { next with
-                     flag = match oper with
-                            | x when x = state.acc -> 0
-                            | x when x < state.acc -> -1
-                            | x when x > state.acc -> 1 }
-        | JPE addr -> loop { state with pc = if state.flag = 0
-                                             then addr - program.start
-                                             else state.pc + 1 }
-        | JPN addr -> loop { state with pc = if state.flag <> 0
-                                             then addr - program.start
-                                             else state.pc + 1 }
-        | IN -> loop next
-        | OUT ->
-            printfn $"{state.acc} -> '{char state.acc}'"
-            loop next
-        | END -> ()
-        | instr -> failwith $"Unhandled instruction: {instr} \n {state}" 
+let step state =
+    let pc    = state.pc
+    let state = { state with cir = state.program.instrs[state.pc] }
+    let next  = { state with pc = pc + 1 }
+    printfn $"[%2d{pc + state.program.start}]: {state.cir, -32}| (ACC = %3d{state.acc}, IX = %2d{state.ix}, flag=%2d{state.flag})"
+    match state.cir with
+    | LDM num  -> { next with acc = num }
+    | LDD addr -> { next with acc = getMem state.memory addr }
+    | LDI addr -> { next with acc = getMem state.memory (getMem state.memory addr) }
+    | LDX addr -> { next with acc = getMem state.memory (addr + state.ix) }
+    | LDR num  -> { next with ix  = num }
+    | MOV reg  ->
+        match reg with
+        | ACC -> next
+        | IX  -> { next with ix = state.acc }
+    | STO addr ->
+        state.memory[addr] <- state.acc
+        next
+    | ADD oper -> (regAdd next (matchNum oper) ACC false)
+    | SUB oper -> (regAdd next (matchNum oper) ACC true)
+    | INC reg  -> (regAdd next (Number 1) reg false)
+    | DEC reg  -> (regAdd next (Number 1) reg true)
+    | JMP addr -> { state with pc = addr - state.program.start }
+    | CMP oper ->
+        { next with
+            flag = match oper with
+                   | Number x when x = state.acc -> 0
+                   | Number x when x < state.acc -> -1
+                   | Number x when x > state.acc -> 1
+                   | x -> failwith $"Unexpected value for compare: '{x}'\n{state}" }
+    | CMI addr ->
+        let oper = getMem state.memory addr
+        { next with
+            flag = match oper with
+                   | x when x = state.acc -> 0
+                   | x when x < state.acc -> -1
+                   | x when x > state.acc -> 1 }
+    | JPE addr -> { state with pc = if state.flag = 0
+                                    then addr - state.program.start
+                                    else state.pc + 1 }
+    | JPN addr -> { state with pc = if state.flag <> 0
+                                    then addr - state.program.start
+                                    else state.pc + 1 }
+    | IN  -> next
+    | OUT ->
+        state.output (char state.acc |> string)
+        next
+    | END   -> state
+    | instr -> failwith $"Unhandled instruction: {instr} \n {state}" 
 
-    let state = State.Default
-    program.memory |> Array.iter (fun (addr: int, value: int) ->
-                                     state.memory[addr] <- value)
-    printfn $"Starting program:\n{program}\n"
-    loop state
+let load output (program: Program) = 
+    let state = { State.Default with
+                    program = program
+                    output  = output }
+    program.memory
+    |> Array.iter (fun (addr: int, value: int) ->
+        state.memory[addr] <- value)
+    state
+
+let rec run state =
+    if state.cir <> END
+    then step state |> run
+    else ()
