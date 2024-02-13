@@ -67,7 +67,24 @@ let parseInstr instr oper =
     | "LSR", Some oper -> LSR >|= (parseNumber  oper)
     | instr, oper -> Error $"Unrecognized values: '{instr}' '{oper}'"
 
-let parse (file: StreamReader): Program =
+let parseInstrs (instrs: (string * string option) list) (memory: (int * int) list) start =
+    let instrs =
+        instrs
+        |> List.map (fun (instr, oper) ->
+            parseInstr instr oper)
+        |> List.mapi (fun i res ->
+            match res with
+            | Ok instr  -> instr
+            | Error err -> raise (invalidArg "Instruction" $"[{i}] '{err}'"))
+        |> Array.ofList
+    let memory = memory |> Array.ofList
+    { instrs = instrs
+      memory = memory
+      start  = start }
+
+#if !FABLE_COMPILER
+
+let parseFile (file: StreamReader): Program =
     let rec parseMemory start memory lNum =
         if file.Peek () = int ';' then
             file.ReadLine()
@@ -83,6 +100,7 @@ let parse (file: StreamReader): Program =
                                   It should have the form: '; <addr> <value>'
                                   where <addr> and <value> are integers."
         else start, memory, lNum
+
     let rec parseProgram instrs lNum =
         match file.ReadLine () with
         | null -> instrs
@@ -105,3 +123,5 @@ let parse (file: StreamReader): Program =
                |> Array.rev
       memory = memory |> Array.ofList
       start  = start }
+
+#endif

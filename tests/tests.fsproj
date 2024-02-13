@@ -4,8 +4,9 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src/tokens.fs" />
-    <Compile Include="src/parser.fs" />
-    <Compile Include="src/vm.fs" />
+    <Compile Include="main.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../fasm.fsproj" />
   </ItemGroup>
 </Project>
