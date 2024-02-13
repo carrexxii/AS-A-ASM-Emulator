@@ -68,29 +68,12 @@ module Parser =
         | "LSR", Some oper -> LSR >|= (parseNumber  oper)
         | instr, oper -> Error $"Unrecognized values: '{instr}' '{oper}'"
 
-    let parseInstrs (instrs: (string * string option) list) (memory: (int * int) list) start =
-        let instrs =
-            instrs
-            |> List.map (fun (instr, oper) ->
-                parseInstr instr oper)
-            |> List.mapi (fun i res ->
-                match res with
-                | Ok instr  -> instr
-                | Error err -> raise (invalidArg "Instruction" $"[{i}] '{err}'"))
-            |> Array.ofList
-        let memory = memory |> Array.ofList
-        { instrs = instrs
-          memory = memory
-          start  = start }
-
-#if !FABLE_COMPILER
-    let parseFile (file: StreamReader): Program =
+    let parse (lines: string array): Program =
         let rec parseMemory start memory lNum =
-            if file.Peek () = int ';' then
-                file.ReadLine()
-                    .Trim(' ', '\t', ';')
-                    .Split(' ')
-                |> function
+            let line = lines[lNum].Trim ()
+            if line.StartsWith ";" then
+                let line = line.TrimStart [| ';'; ' ' |]
+                match line.Split ' ' with
                 | [| "start"; value |] -> parseMemory (int value) memory (lNum + 1)
                 | [| addr; value |] ->
                     let addr  = int addr
@@ -98,65 +81,25 @@ module Parser =
                     parseMemory start ((addr, value)::memory) (lNum + 1)
                 | xs -> failwith $"Memory on line {lNum} appears to be malformed.
                                    It should have the form: '; <addr> <value>'
-                                   where <addr> and <value> are integers."
+                                   where <addr> and <value> are integers.
+                                   \n\tGot: '{line}'"
             else start, memory, lNum
 
         let rec parseProgram instrs lNum =
-            match file.ReadLine () with
-            | null -> instrs
-            | "\n"
-            | ""   -> parseProgram instrs (lNum + 1)
-            | line ->
-                let ci = match line.Split " " with
-                         | [| instr; oper |] -> parseInstr instr (Some oper)
-                         | [| instr |] -> parseInstr instr None
-                         | xs -> failwith $"Unrecognized: {xs}"
-                match ci with
-                | Ok    ci  -> parseProgram ((lNum, ci)::instrs) (lNum + 1)
-                | Error err -> failwith $"Error parsing line {lNum}: {err}"
+            if lNum < lines.Length then
+                match lines[lNum] with
+                | ""   -> parseProgram instrs (lNum + 1)
+                | line ->
+                    let ci = match line.Split " " with
+                             | [| instr; oper |] -> parseInstr instr (Some oper)
+                             | [| instr |] -> parseInstr instr None
+                             | xs -> failwith $"Unrecognized: {xs}"
+                    match ci with
+                    | Ok    ci  -> parseProgram ((lNum, ci)::instrs) (lNum + 1)
+                    | Error err -> failwith $"Error parsing line {lNum}: {err}"
+            else instrs
 
-        let start, memory, lNum = parseMemory 1 [] 1
-        let instrs = parseProgram [] lNum
-        { instrs = instrs
-                   |> List.map (fun (i, instr) -> instr)
-                   |> Array.ofList
-                   |> Array.rev
-          memory = memory |> Array.ofList
-          start  = start }
-#endif
-
-    let parse (file: string array): Program =
-        let rec parseMemory start memory lNum =
-            if file.Peek () = int ';' then
-                file.ReadLine()
-                    .Trim(' ', '\t', ';')
-                    .Split(' ')
-                |> function
-                | [| "start"; value |] -> parseMemory (int value) memory (lNum + 1)
-                | [| addr; value |] ->
-                    let addr  = int addr
-                    let value = int value
-                    parseMemory start ((addr, value)::memory) (lNum + 1)
-                | xs -> failwith $"Memory on line {lNum} appears to be malformed.
-                                   It should have the form: '; <addr> <value>'
-                                   where <addr> and <value> are integers."
-            else start, memory, lNum
-
-        let rec parseProgram instrs lNum =
-            match file.ReadLine () with
-            | null -> instrs
-            | "\n"
-            | ""   -> parseProgram instrs (lNum + 1)
-            | line ->
-                let ci = match line.Split " " with
-                         | [| instr; oper |] -> parseInstr instr (Some oper)
-                         | [| instr |] -> parseInstr instr None
-                         | xs -> failwith $"Unrecognized: {xs}"
-                match ci with
-                | Ok    ci  -> parseProgram ((lNum, ci)::instrs) (lNum + 1)
-                | Error err -> failwith $"Error parsing line {lNum}: {err}"
-
-        let start, memory, lNum = parseMemory 1 [] 1
+        let start, memory, lNum = parseMemory 1 [] 0
         let instrs = parseProgram [] lNum
         { instrs = instrs
                    |> List.map (fun (i, instr) -> instr)

@@ -9,8 +9,9 @@ let main args =
     printfn $"{args}"
     let path = "./programs/test.asaasm"
     try
-        use file = File.OpenText path
-        let state = Parser.parseFile file |> VM.load (fun str -> printfn $"## {str}")
+        let lines = File.ReadAllLines path
+        let state = Parser.parse lines |> VM.load (fun str -> printfn $"## {str}")
+        printfn $"{state}"
         VM.run state
     with
         | :? DirectoryNotFoundException -> failwith $"Directory '{path}' not found"
