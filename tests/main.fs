@@ -2,6 +2,8 @@
 
 open System.IO
 
+open ASAEmulator
+
 [<EntryPoint>]
 let main args =
     printfn $"{args}"
