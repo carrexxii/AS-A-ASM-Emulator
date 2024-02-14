@@ -20,7 +20,7 @@ module VM =
             { program = Program.Default
               pc      = 0
               acc     = 0
-              ix      = 0
+              ix      = -1
               mar     = 0
               mdr     = 0
               cir     = START
@@ -31,19 +31,19 @@ module VM =
     let matchNum = function
         | Number num   -> Number num
         | Address addr -> Address addr
-        | Register reg -> failwith "Expected a number, got a register: {reg}"
+        | Register reg -> invalidArg $"{reg}" "Expected a number, got a register"
 
     let getMem (memory: Dictionary<int, int>) addr =
         let content = ref 0
         match memory.TryGetValue (addr, content) with
         | true  -> content.Value
-        | false -> failwith $"Invalid memory access: address '{addr}' has not been set"
+        | false -> invalidArg $"{addr}" $"Invalid memory access: address '{addr}' has not been set"
 
     let regAdd state num reg neg =
         let num = match num with
                   | Number  num  -> num
                   | Address addr -> getMem state.memory addr
-                  | Register reg -> failwith $"Unexpected register argument for regAdd: {reg}\n{state}"
+                  | Register reg -> invalidArg $"{reg}" $"Unexpected register argument for regAdd"
         match reg with
         | ACC -> { state with acc = if not neg then state.acc + num else state.acc - num }
         | IX  -> { state with ix  = if not neg then state.ix  + num else state.ix  - num }
@@ -56,8 +56,8 @@ module VM =
         let pc    = state.pc
         let state = { state with cir = state.program.instrs[state.pc] }
         let next  = { state with pc = pc + 1 }
-        printfn $"[%2d{pc + state.program.start}]: {state.cir, -32}| (ACC = %3d{state.acc}, IX = %2d{state.ix}, flag=%2d{state.flag})"
         match state.cir with
+        | START -> next
         | LDM num  -> { next with acc = num }
         | LDD addr -> { next with acc = getMem state.memory addr }
         | LDI addr -> { next with acc = getMem state.memory (getMem state.memory addr) }
@@ -80,8 +80,7 @@ module VM =
                 flag = match oper with
                        | Number x when x = state.acc -> 0
                        | Number x when x < state.acc -> -1
-                       | Number x when x > state.acc -> 1
-                       | x -> failwith $"Unexpected value for compare: '{x}'\n{state}" }
+                       | Number x when x > state.acc -> 1 }
         | CMI addr ->
             let oper = getMem state.memory addr
             { next with
@@ -99,8 +98,7 @@ module VM =
         | OUT ->
             state.output (char state.acc |> string)
             next
-        | END   -> state
-        | instr -> failwith $"Unhandled instruction: {instr} \n {state}"
+        | END -> state
 
     let load output (program: Program) =
         let state = { State.Default with

@@ -13,6 +13,11 @@ module Tokens =
         | Number   of Number
         | Address  of Address
         | Register of Register
+        override this.ToString () =
+            match this with
+            | Number   n -> $"#{n}"
+            | Address  n -> $"{n}"
+            | Register r -> $"{r}"
 
     type Instruction =
         | LDM of Number

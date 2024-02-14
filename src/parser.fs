@@ -1,7 +1,6 @@
 namespace ASAEmulator
 
 open System
-open System.IO
 open System.Globalization
 
 open Tokens
@@ -79,10 +78,9 @@ module Parser =
                     let addr  = int addr
                     let value = int value
                     parseMemory start ((addr, value)::memory) (lNum + 1)
-                | xs -> failwith $"Memory on line {lNum} appears to be malformed.
-                                   It should have the form: '; <addr> <value>'
-                                   where <addr> and <value> are integers.
-                                   \n\tGot: '{line}'"
+                | xs -> invalidArg $"{line}" "Memory on line {lNum} appears to be malformed.
+                                              It should have the form: '; <addr> <value>'
+                                              where <addr> and <value> are integers."
             else start, memory, lNum
 
         let rec parseProgram instrs lNum =
@@ -93,17 +91,22 @@ module Parser =
                     let ci = match line.Split " " with
                              | [| instr; oper |] -> parseInstr instr (Some oper)
                              | [| instr |] -> parseInstr instr None
-                             | xs -> failwith $"Unrecognized: {xs}"
+                             | xs -> invalidArg $"{xs}" "Unrecognized"
                     match ci with
                     | Ok    ci  -> parseProgram ((lNum, ci)::instrs) (lNum + 1)
-                    | Error err -> failwith $"Error parsing line {lNum}: {err}"
+                    | Error err -> invalidArg $"{line}" $"Error parsing line {lNum}: {err}"
             else instrs
 
         let start, memory, lNum = parseMemory 1 [] 0
-        let instrs = parseProgram [] lNum
+        let instrs =
+            parseProgram [] lNum
+            |> List.map (fun (i, instr) -> instr)
+            |> Array.ofList
+            |> Array.rev
+        let instrs, start =
+            if instrs[0] <> START
+            then Array.append [| START |] instrs, start - 1
+            else instrs, start
         { instrs = instrs
-                   |> List.map (fun (i, instr) -> instr)
-                   |> Array.ofList
-                   |> Array.rev
           memory = memory |> Array.ofList
           start  = start }
